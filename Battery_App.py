@@ -78,10 +78,10 @@ def run_the_app():
     
     # Define stramlit column containers
     with tab1:
-        t1_col1, t1_col2 = st.columns([4, 1])
+        t1_col1, t1_col2 = st.columns([3.5, 1.2])
     
     with tab2:
-        t2_col1, t2_col2 = st.columns([4, 1])
+        t2_col1, t2_col2 = st.columns([4.5, 2])
     
 
     
@@ -178,26 +178,28 @@ def run_the_app():
     GridCO2_vs_EU['CHARGHING?'] = GridCO2_vs_EU[CO2_DIFF] <= -_input_CO2_diff # charge battery only if difference is greater than 10
     
     
-#    fig_CO2 = px.line(GridCO2_vs_EU[GridCO2],markers=False)
-#    st.plotly_chart(fig_CO2, use_container_width=True)
+
     
-    with tab1:
-        with t1_col1:
-            fig_EU = px.line(GridCO2_vs_EU[EU_BLDG],markers=False, width=800, height=200)
-            fig_EU.update_xaxes(title = 'Hour').update_yaxes(title = 'kWh').update_layout(
-                margin=dict(l=50, r=0, t=0, b=40),
-                showlegend=False
-            )
-            st.plotly_chart(fig_EU, use_container_width=True)
+#     with tab1:
+#         with t1_col1:
+#             fig_EU = px.line(GridCO2_vs_EU[EU_BLDG],markers=False, width=800, height=200)
+#             fig_EU.update_xaxes(title = 'Hour').update_yaxes(title = 'kWh').update_layout(
+#                 margin=dict(l=50, r=0, t=0, b=40),
+#                 showlegend=False
+#             )
+#             st.plotly_chart(fig_EU, use_container_width=True)
     
-    with tab2:
-        with t2_col1:
-            fig_CO2 = px.line(GridCO2_vs_EU[CO2_GRID],markers=False, width=800, height=200)
-            fig_CO2.update_xaxes(title = 'Hour').update_yaxes(title = 'gCO2').update_layout(
-                margin=dict(l=50, r=0, t=0, b=40),
-                showlegend=False
-            )
-            st.plotly_chart(fig_CO2, use_container_width=True)
+#     with tab2:
+#         with t2_col1:
+#             fig_CO2 = px.line(GridCO2_vs_EU[CO2_GRID],markers=False, width=800, height=200)
+#             fig_CO2.update_xaxes(title = 'Hour').update_yaxes(title = 'gCO2').update_layout(
+#                 margin=dict(l=50, r=0, t=0, b=40),
+#                 showlegend=False
+#             )
+#             st.plotly_chart(fig_CO2, use_container_width=True)
+    
+    
+    
     
 
     loads = []
@@ -270,7 +272,7 @@ def run_the_app():
     GridCO2_vs_EU['kgCO2_BldgAndBatt'] = GridCO2_vs_EU['EU_BldgAndBatt'] * GridCO2_vs_EU[CO2_GRID] / 1000
 
     #st.dataframe(GridCO2_vs_EU.drop(columns={CO2_GRID, CO2_AVG_D,'CI_gCO2_Difference'}))
-    st.dataframe(GridCO2_vs_EU)
+    #st.dataframe(GridCO2_vs_EU)
     
     charge_frequency = GridCO2_vs_EU['battery_charge'].value_counts().sort_values(ascending=False).head(10)
     
@@ -278,77 +280,126 @@ def run_the_app():
     
     
 
+    compare = pd.DataFrame()
+    compare['kWh_Opt0'] = GridCO2_vs_EU[EU_BLDG].apply(lambda x: round(x, 2))
+    compare['kWh_Opt0_cumsum'] = compare['kWh_Opt0'].cumsum(axis=0, skipna=True)
+
+    compare['kgCO2_Opt0'] = compare['kWh_Opt0'] * GridCO2_vs_EU[CO2_GRID] / 1000 
+    compare['kgCO2_Opt0_cumsum'] = compare['kgCO2_Opt0'].cumsum(axis=0, skipna=True)
+
+    compare['kWh_Opt1'] = GridCO2_vs_EU['EU_BldgAndBatt']
+    compare['kWh_Opt1_cumsum'] = compare['kWh_Opt1'].cumsum(axis=0, skipna=True)
+
+    compare['kgCO2_Opt1'] = GridCO2_vs_EU['kgCO2_BldgAndBatt'] 
+    compare['kgCO2_Opt1_cumsum'] = compare['kgCO2_Opt1'].cumsum(axis=0, skipna=True)
+
+
+    compare = compare.round(decimals=2)
+    compare.head(48)
     
     
+    #st.dataframe(compare.drop(columns={'kWh_Opt0','kgCO2_Opt0','kWh_Opt1','kgCO2_Opt1'}))
+
+
+    EU_B_D = compare['kWh_Opt0'].resample('D').sum().to_frame()
+    EU_BnB_D = compare['kWh_Opt1'].resample('D').sum().to_frame()
+
+    EU_compared_D = pd.concat([EU_B_D, EU_BnB_D], axis=1)
+
+    kWh_figure = px.line(EU_compared_D, markers=True)
+    kWh_figure.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=3, label="3m", step="month", stepmode="backward"),
+                dict(count=1, label="YTD", step="year", stepmode="todate"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
+        )
+    )
+    
+    
+    
+    with tab1:
+        st.plotly_chart(kWh_figure, theme = "streamlit")
+
+
+    CO2_B_D = compare['kgCO2_Opt0'].resample('D').sum().to_frame()
+    CO2_BnB_D = compare['kgCO2_Opt1'].resample('D').sum().to_frame()
+
+    CO2_compared_D = pd.concat([CO2_B_D, CO2_BnB_D], axis=1)
+    
+    
+    totals_CO2 = CO2_compared_D.sum()
+    
+    old_CO2 = totals_CO2.iloc[0]/1000
+    new_CO2 = totals_CO2.iloc[1]/1000
+    differ_CO2 = old_CO2 - new_CO2
+    percent_savings_CO2 = ((totals_CO2.iloc[0]-totals_CO2.iloc[1])/totals_CO2.iloc[0])*100
+    
+    with tab2:
+        with t2_col2:
+            st.subheader("Operational CO2")
+            
+            st.metric(label='Building only:', value=old_CO2.round(2))
+            st.metric(label='Building & battery:', value=new_CO2.round(2), delta=str(-(percent_savings_CO2.round(2)))+"%", delta_color="inverse" )
+            
+            st.subheader('Embodied CO2')
+           
+            battery_embodied = max_load * 50 / 1000
+            st.metric(label='Battery manufacturing:', value=battery_embodied.round(2))
+            st.caption('Note: all numbers are in CO2 Tonnes')
+            
+            
+            CO2_payback_years = battery_embodied / differ_CO2
+            
+            
+            st.text('Pay-back period:')
+            st.header(CO2_payback_years.round(1))
+            st.text('Years')
+            
+            
+            
+
+    kgCO2_figure = px.line(CO2_compared_D,markers=True)
+    kgCO2_figure.update_xaxes(
+        rangeslider_visible=True,
+        rangeselector=dict(
+            buttons=list([
+                dict(count=1, label="1m", step="month", stepmode="backward"),
+                dict(count=3, label="3m", step="month", stepmode="backward"),
+                dict(count=1, label="YTD", step="year", stepmode="todate"),
+                dict(count=1, label="1y", step="year", stepmode="backward"),
+                dict(step="all")
+            ])
+        )
+    )
+    
 
 
 
-# 
-# 
-#     compare = pd.DataFrame()
-#     compare['kWh_Opt0'] = GridCO2_vs_EU[EU_BLDG].apply(lambda x: round(x, 2))
-#     compare['kWh_Opt0_cumsum'] = compare['kWh_Opt0'].cumsum(axis=0, skipna=True)
-# 
-#     compare['kgCO2_Opt0'] = compare['kWh_Opt0'] * GridCO2_vs_EU[CO2_GRID] / 1000 
-#     compare['kgCO2_Opt0_cumsum'] = compare['kgCO2_Opt0'].cumsum(axis=0, skipna=True)
-# 
-#     compare['kWh_Opt1'] = GridCO2_vs_EU['EU_BldgAndBatt']
-#     compare['kWh_Opt1_cumsum'] = compare['kWh_Opt1'].cumsum(axis=0, skipna=True)
-# 
-#     compare['kgCO2_Opt1'] = GridCO2_vs_EU['kgCO2_BldgAndBatt'] 
-#     compare['kgCO2_Opt1_cumsum'] = compare['kgCO2_Opt1'].cumsum(axis=0, skipna=True)
-# 
-# 
-#     compare = compare.round(decimals=2)
-#     compare.head(48)
-#     
-#     
-#     st.dataframe(compare.drop(columns={'kWh_Opt0','kgCO2_Opt0','kWh_Opt1','kgCO2_Opt1'}))
-# 
-# 
-#     EU_B_D = compare['kWh_Opt0'].resample('D').sum().to_frame()
-#     EU_BnB_D = compare['kWh_Opt1'].resample('D').sum().to_frame()
-# 
-#     EU_compared_D = pd.concat([EU_B_D, EU_BnB_D], axis=1)
-# 
-#     kWh_figure = px.line(EU_compared_D, markers=True)
-#     kWh_figure.update_xaxes(
-#         rangeslider_visible=True,
-#         rangeselector=dict(
-#             buttons=list([
-#                 dict(count=1, label="1m", step="month", stepmode="backward"),
-#                 dict(count=3, label="3m", step="month", stepmode="backward"),
-#                 dict(count=1, label="YTD", step="year", stepmode="todate"),
-#                 dict(count=1, label="1y", step="year", stepmode="backward"),
-#                 dict(step="all")
-#             ])
-#         )
-#     )
-# 
-#     st.plotly_chart(kWh_figure, use_container_width=True)
-# 
-# 
-#     CO2_B_D = compare['kgCO2_Opt0'].resample('D').sum().to_frame()
-#     CO2_BnB_D = compare['kgCO2_Opt1'].resample('D').sum().to_frame()
-# 
-#     CO2_compared_D = pd.concat([CO2_B_D, CO2_BnB_D], axis=1)
-# 
-#     kgCO2_figure = px.line(CO2_compared_D)
-#     kgCO2_figure.update_xaxes(
-#         rangeslider_visible=True,
-#         rangeselector=dict(
-#             buttons=list([
-#                 dict(count=1, label="1m", step="month", stepmode="backward"),
-#                 dict(count=3, label="3m", step="month", stepmode="backward"),
-#                 dict(count=1, label="YTD", step="year", stepmode="todate"),
-#                 dict(count=1, label="1y", step="year", stepmode="backward"),
-#                 dict(step="all")
-#             ])
-#         )
-#     )
-#     
-#     st.plotly_chart(kgCO2_figure,theme = "streamlit")
+    #CO2_B_cumsum = compare['kgCO2_Opt0'].resample('D').sum().to_frame()
+    #CO2_BnB_cumsum = compare['kgCO2_Opt1'].resample('D').sum().to_frame()
 
+
+    CO2_B_cumsum = CO2_compared_D['kgCO2_Opt0'].cumsum(axis=0, skipna=True)
+    CO2_BnB_cumsum = CO2_compared_D['kgCO2_Opt1'].cumsum(axis=0, skipna=True)
+
+
+    CO2_compared_cumsum = pd.concat([CO2_B_cumsum, CO2_BnB_cumsum], axis=1)
+
+
+    with tab2:
+        with t2_col1:
+            kgCO2_figure = px.line(CO2_compared_cumsum, markers=False, width=480, height=400)
+            kgCO2_figure.update_xaxes(title = 'Hour').update_yaxes(title = 'gCO2').update_layout(
+                legend=dict(x=0.75, y=0.05,traceorder="normal"),
+                margin=dict(l=0, r=0, t=0, b=0),
+                showlegend=True
+            )
+            st.plotly_chart(kgCO2_figure, theme = "streamlit")
 
 
     # clear cache memory button 
