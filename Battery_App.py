@@ -318,7 +318,11 @@ def run_the_app():
                 dict(step="all")
             ])
         )
-    )
+    ).update_layout(
+                legend=dict(x=0.75, y=1,traceorder="normal"),
+                margin=dict(l=0, r=0, t=0, b=0),
+                showlegend=True
+            )
     
     
     
