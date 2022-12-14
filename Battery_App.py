@@ -105,7 +105,7 @@ def run_the_app():
     #st.sidebar.write('difference is set to: ', _input_CO2_diff, 'gCO2')
 
     _max_load_quantile = st.sidebar.slider(
-        label = '4- Battery capacity (percentile of maximum load):',
+        label = r'4- Battery capacity (% of maximum daily load):',
         help = 'This value determines which percentile reprecents battery size of the maximum load period for electrical demand.',
         value = 0.75,
         max_value = 1.00,
@@ -216,13 +216,16 @@ def run_the_app():
 
     max_loads = [x for x in max_loads if x != 0] #remove zeros from list
 
-    max_load = round(np.quantile(max_loads, q = _max_load_quantile), 2)
+    #max_load = round(np.quantile(max_loads, q = _max_load_quantile), 2)
+    
+       
+    battery_size = round(np.quantile(EnergyUse_D.values.tolist(), q = _max_load_quantile), 2)
     
     
-    st.sidebar.write("Battery capacity is", max_load, "kWh")
+    st.sidebar.write("Battery capacity is", battery_size, "kWh")
     
 
-    battery_size = max_load
+
     charging_rate = battery_size/4
     battery_charge = 0
     EU_battery = 0
@@ -352,8 +355,8 @@ def run_the_app():
             
             st.subheader('Embodied CO2')
            
-            battery_embodied = max_load * 50 / 1000
-            st.metric(label='Battery manufacturing:', value=battery_embodied.round(2))
+            battery_embodied = battery_size * 50 / 1000
+            st.metric(label='Battery manufacturing:', value=round(battery_embodied,2))
             st.caption('Note: all numbers are in CO2 Tonnes')
             
             
