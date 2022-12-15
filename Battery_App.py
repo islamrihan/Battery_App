@@ -73,7 +73,7 @@ def run_the_app():
     
     
     # Define stramlit tabs
-    tab1, tab2 = st.tabs(["Energy Use", "Carbon Emissions"])    
+    tab2, tab1 = st.tabs(["Carbon Emissions", "Energy Use"])    
     
     
     # Define stramlit column containers
@@ -348,24 +348,32 @@ def run_the_app():
     
     with tab2:
         with t2_col2:
-            st.subheader("Operational CO2")
             
+
+            st.markdown('<p style="color:Grey; font-size: 30px;">Operational CO<sub>2</sub>', unsafe_allow_html=True)
+                       
             st.metric(label='Building only:', value=old_CO2.round(2))
             st.metric(label='Building & battery:', value=new_CO2.round(2), delta=str(-(percent_savings_CO2.round(2)))+"%", delta_color="inverse" )
+                        
+           
+            st.markdown('<p style="color:Grey; font-size: 30px;">Embodied CO<sub>2</sub>', unsafe_allow_html=True)
             
-            st.subheader('Embodied CO2')
            
             battery_embodied = battery_size * 50 / 1000
             st.metric(label='Battery manufacturing:', value=round(battery_embodied,2))
             st.caption('Note: all numbers are in CO2 Tonnes')
             
             
+            st.text('Pay-back period:')
+            
             CO2_payback_years = battery_embodied / differ_CO2
             
             
-            st.text('Pay-back period:')
-            st.header(CO2_payback_years.round(1))
-            st.text('Years')
+            if CO2_payback_years < 0:
+                st.markdown('<p style="color:Red;">NaN', unsafe_allow_html=True)
+            else:
+                st.header(str(CO2_payback_years.round(1)) + ' years')      
+
             
             
             
@@ -396,8 +404,10 @@ def run_the_app():
 
 
     CO2_compared_cumsum = pd.concat([CO2_B_cumsum, CO2_BnB_cumsum], axis=1)
-
-
+    
+    
+    
+    # Cumulative carbon grapgh
     with tab2:
         with t2_col1:
             kgCO2_figure = px.line(CO2_compared_cumsum, markers=False, width=480, height=400)
