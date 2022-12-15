@@ -73,7 +73,7 @@ def run_the_app():
     
     
     # Define stramlit tabs
-    tab2, tab1 = st.tabs(["Carbon Emissions", "Energy Use"])    
+    tab2, tab1, tab3 = st.tabs(["Carbon Emissions", "Energy Use", "All Data"])    
     
     
     # Define stramlit column containers
@@ -105,13 +105,14 @@ def run_the_app():
     #st.sidebar.write('difference is set to: ', _input_CO2_diff, 'gCO2')
 
     _max_load_quantile = st.sidebar.slider(
-        label = r'4- Battery capacity (% of maximum daily load):',
-        help = 'This value determines which percentile reprecents battery size of the maximum load period for electrical demand.',
-        value = 0.75,
+        label = r'4- Battery capacity (% of max. daily load):',
+        help = 'This value determines the battery size as a percentage from the maximum daily load of building operational energy demand.',
+        value = 0.60,
         max_value = 1.00,
         min_value = 0.05)  # slider widget
     #st.sidebar.write('Battery sizing is', _max_load_quantile, 'percentile of the max load')
     
+
 
 
         
@@ -175,8 +176,12 @@ def run_the_app():
 
     GridCO2_vs_EU[CO2_DIFF] = GridCO2_vs_EU[CO2_GRID] - GridCO2_vs_EU[CO2_AVG_D]
 
-    GridCO2_vs_EU['CHARGHING?'] = GridCO2_vs_EU[CO2_DIFF] <= -_input_CO2_diff # charge battery only if difference is greater than 10
+    GridCO2_vs_EU['BELOW_AVG'] = GridCO2_vs_EU[CO2_DIFF] < -_input_CO2_diff # check if current hour is below daily average CO2 intensity
     
+    
+    
+    
+     
     
 
     
@@ -206,7 +211,7 @@ def run_the_app():
     max_loads = []
     max_load = 0
 
-    for i,j in zip(GridCO2_vs_EU['CHARGHING?'],range(len(GridCO2_vs_EU[EU_BLDG]))):
+    for i,j in zip(GridCO2_vs_EU['BELOW_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
         
         if  i == False:
             max_load = max_load + GridCO2_vs_EU[EU_BLDG].iloc[j]
@@ -219,14 +224,68 @@ def run_the_app():
     #max_load = round(np.quantile(max_loads, q = _max_load_quantile), 2)
     
        
-    battery_size = round(np.quantile(EnergyUse_D.values.tolist(), q = _max_load_quantile), 2)
+    battery_size = round(_max_load_quantile * EnergyUse_D.values.max(), 2)
     
     
     st.sidebar.write("Battery capacity is", battery_size, "kWh")
     
+    
+    _battery_charging_rate = st.sidebar.slider(
+        label = r'5- Battery charging period:',
+        help = 'This value determines the number of hours needed to fully charge the battery.',
+        value = 4,
+        max_value = 24,
+        min_value = 2)  # slider widget
 
 
-    charging_rate = battery_size/4
+
+
+
+
+
+
+    # create new column for CI values that are <= daily average CO2 intensity
+    CI_avg_min = []
+
+    for i,j in zip(GridCO2_vs_EU['BELOW_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
+        if i == False:
+            CI_avg_min.append(GridCO2_vs_EU[CO2_AVG_D].iloc[j])
+            
+        else:
+            CI_avg_min.append(GridCO2_vs_EU[CO2_GRID].iloc[j])
+        
+    GridCO2_vs_EU['CI_avg_min'] = [round(elem, 2) for elem in CI_avg_min]    
+    
+    
+    # locate local minima values in Carbon data
+
+    y = GridCO2_vs_EU['CI_avg_min'].to_numpy()
+    min_loc = np.where((y[1:-1] < y[0:-2]) * (y[1:-1] < y[2:]))[0] + 1
+    
+    
+    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
+        GridCO2_vs_EU["LOCAL_MIN"] = False
+        
+    
+    step = int(_battery_charging_rate/2)
+
+    
+    if _battery_charging_rate % 2 == 0:
+        for i in range(len(min_loc)):
+            GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step)] = True
+            
+    else:
+        for i in range(len(min_loc)):
+            GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step+1)] = True        
+
+    
+    
+    GridCO2_vs_EU["CHARGING?"] = GridCO2_vs_EU["BELOW_AVG"] * GridCO2_vs_EU["LOCAL_MIN"]
+    
+    
+    
+    
+    charging_rate = battery_size/_battery_charging_rate
     battery_charge = 0
     EU_battery = 0
     EU_BnB = 0
@@ -235,7 +294,7 @@ def run_the_app():
     EU_kWh_Battery = []
     EU_BldgAndBatt = []
 
-    for i, j in zip(GridCO2_vs_EU['CHARGHING?'],range(len(GridCO2_vs_EU[EU_BLDG]))):
+    for i, j in zip(GridCO2_vs_EU['LOCAL_MIN'],range(len(GridCO2_vs_EU[EU_BLDG]))):
         
         if i == True: # Battery IS charging; (LOW CO2 intensity from the grid)
             if battery_charge < battery_size:
@@ -275,7 +334,8 @@ def run_the_app():
     GridCO2_vs_EU['kgCO2_BldgAndBatt'] = GridCO2_vs_EU['EU_BldgAndBatt'] * GridCO2_vs_EU[CO2_GRID] / 1000
 
     #st.dataframe(GridCO2_vs_EU.drop(columns={CO2_GRID, CO2_AVG_D,'CI_gCO2_Difference'}))
-    #st.dataframe(GridCO2_vs_EU)
+    
+    
     
     charge_frequency = GridCO2_vs_EU['battery_charge'].value_counts().sort_values(ascending=False).head(10)
     
@@ -424,6 +484,12 @@ def run_the_app():
         # Clear values from *all* memoized functions:
         # i.e. clear values from both square and cube
         st.experimental_memo.clear()
+        
+        
+        
+    # Display all data in a table    
+    with tab3:
+        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,'CI_avg_min']))
 
 if __name__ == "__main__":
     main()
