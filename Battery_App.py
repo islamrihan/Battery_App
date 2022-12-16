@@ -81,7 +81,7 @@ def run_the_app():
         t1_col1, t1_col2 = st.columns([3.5, 1.2])
     
     with tab2:
-        t2_col1, t2_col2 = st.columns([4.5, 2])
+        t2_col1, t2_col2 = st.columns([4.5, 1.2])
     
 
     
@@ -107,9 +107,9 @@ def run_the_app():
     _max_load_quantile = st.sidebar.slider(
         label = r'4- Battery capacity (% of max. daily load):',
         help = 'This value determines the battery size as a percentage from the maximum daily load of building operational energy demand.',
-        value = 0.60,
-        max_value = 1.00,
-        min_value = 0.05)  # slider widget
+        value = 60,
+        max_value = 100,
+        min_value = 5)  # slider widget
     #st.sidebar.write('Battery sizing is', _max_load_quantile, 'percentile of the max load')
     
 
@@ -221,21 +221,20 @@ def run_the_app():
 
     max_loads = [x for x in max_loads if x != 0] #remove zeros from list
 
-    #max_load = round(np.quantile(max_loads, q = _max_load_quantile), 2)
     
        
-    battery_size = round(_max_load_quantile * EnergyUse_D.values.max(), 2)
+    battery_size = round(_max_load_quantile/100 * EnergyUse_D.values.max(), 2)
     
     
-    st.sidebar.write("Battery capacity is", battery_size, "kWh")
+    #st.sidebar.write("Battery capacity is", round(battery_size/1000 ,2), "MWh")
     
     
     _battery_charging_rate = st.sidebar.slider(
         label = r'5- Battery charging period:',
         help = 'This value determines the number of hours needed to fully charge the battery.',
         value = 4,
-        max_value = 24,
-        min_value = 2)  # slider widget
+        max_value = 12,
+        min_value = 1)  # slider widget
 
 
 
@@ -254,33 +253,68 @@ def run_the_app():
         else:
             CI_avg_min.append(GridCO2_vs_EU[CO2_GRID].iloc[j])
         
-    GridCO2_vs_EU['CI_avg_min'] = [round(elem, 2) for elem in CI_avg_min]    
-    
-    
-    # locate local minima values in Carbon data
+    GridCO2_vs_EU['CI_avg_min'] = [round(elem, 2) for elem in CI_avg_min] 
 
-    y = GridCO2_vs_EU['CI_avg_min'].to_numpy()
-    min_loc = np.where((y[1:-1] < y[0:-2]) * (y[1:-1] < y[2:]))[0] + 1
-    
-    
-    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
-        GridCO2_vs_EU["LOCAL_MIN"] = False
-        
+    # locate local minima values in Carbon data
     
     step = int(_battery_charging_rate/2)
 
+    y = GridCO2_vs_EU['CI_avg_min'].to_numpy()
+    min_loc = np.where((y[1:-1] < y[0:-2]) * (y[1:-1] < y[2:]))[0] + 1
+        
+    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
+        GridCO2_vs_EU["LOCAL_MIN"] = False
     
     if _battery_charging_rate % 2 == 0:
         for i in range(len(min_loc)):
             GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step)] = True
-            
     else:
         for i in range(len(min_loc)):
             GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step+1)] = True        
 
-    
-    
     GridCO2_vs_EU["CHARGING?"] = GridCO2_vs_EU["BELOW_AVG"] * GridCO2_vs_EU["LOCAL_MIN"]
+    
+        
+        
+        
+        
+        
+    
+    
+    # create new column for CI values that are > daily average CO2 intensity
+    GridCO2_vs_EU['ABOVE_AVG'] = GridCO2_vs_EU[CO2_DIFF] > 0
+
+    CI_avg_max = []
+
+    for i,j in zip(GridCO2_vs_EU['ABOVE_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
+        if i == False:
+            CI_avg_max.append(GridCO2_vs_EU[CO2_AVG_D].iloc[j])
+            
+        else:
+            CI_avg_max.append(GridCO2_vs_EU[CO2_GRID].iloc[j])
+        
+    GridCO2_vs_EU['CI_avg_max'] = [round(elem, 2) for elem in CI_avg_max]
+
+    
+    k = GridCO2_vs_EU['CI_avg_max'].to_numpy()
+    max_loc = np.where((k[1:-1] > k[0:-2]) * (k[1:-1] > k[2:]))[0] + 1
+    
+    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
+        GridCO2_vs_EU["LOCAL_MAX"] = False
+    
+    if _battery_charging_rate % 2 == 0:
+        for i in range(len(max_loc)):
+            GridCO2_vs_EU["LOCAL_MAX"].iloc[range(max_loc.item(i)-step, max_loc.item(i)+step)] = True
+    else:
+        for i in range(len(max_loc)):
+            GridCO2_vs_EU["LOCAL_MAX"].iloc[range(max_loc.item(i)-step, max_loc.item(i)+step+1)] = True
+    
+    
+    GridCO2_vs_EU["DISCHARGING?"] = GridCO2_vs_EU["ABOVE_AVG"] * GridCO2_vs_EU["LOCAL_MAX"]
+    
+    
+    
+    
     
     
     
@@ -294,7 +328,7 @@ def run_the_app():
     EU_kWh_Battery = []
     EU_BldgAndBatt = []
 
-    for i, j in zip(GridCO2_vs_EU['LOCAL_MIN'],range(len(GridCO2_vs_EU[EU_BLDG]))):
+    for i, j, h in zip(GridCO2_vs_EU['CHARGING?'],range(len(GridCO2_vs_EU[EU_BLDG])), GridCO2_vs_EU['DISCHARGING?']):
         
         if i == True: # Battery IS charging; (LOW CO2 intensity from the grid)
             if battery_charge < battery_size:
@@ -376,8 +410,6 @@ def run_the_app():
             buttons=list([
                 dict(count=1, label="1m", step="month", stepmode="backward"),
                 dict(count=3, label="3m", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
-                dict(count=1, label="1y", step="year", stepmode="backward"),
                 dict(step="all")
             ])
         )
@@ -410,21 +442,22 @@ def run_the_app():
         with t2_col2:
             
 
-            st.markdown('<p style="color:Grey; font-size: 30px;">Operational CO<sub>2</sub>', unsafe_allow_html=True)
+            st.markdown('<p style="color:Grey; font-size: 22px;">CO<sub>2</sub> Footprint', unsafe_allow_html=True)
+            st.caption('Note: numbers are in CO<sub>2</sub> Tonnes',unsafe_allow_html=True)
                        
-            st.metric(label='Building only:', value=old_CO2.round(2))
-            st.metric(label='Building & battery:', value=new_CO2.round(2), delta=str(-(percent_savings_CO2.round(2)))+"%", delta_color="inverse" )
+            st.metric(label='Building Only:', value=int(old_CO2))
+            st.metric(label='Building & Battery:', value=int(new_CO2), delta=str(-(percent_savings_CO2.round(1)))+"%", delta_color="inverse" )
                         
            
-            st.markdown('<p style="color:Grey; font-size: 30px;">Embodied CO<sub>2</sub>', unsafe_allow_html=True)
+            #st.markdown('<p style="color:Grey; font-size: 30px;">Embodied CO<sub>2</sub>', unsafe_allow_html=True)
+            
             
            
             battery_embodied = battery_size * 50 / 1000
-            st.metric(label='Battery manufacturing:', value=round(battery_embodied,2))
-            st.caption('Note: all numbers are in CO2 Tonnes')
+            st.metric(label='Battery Embodied CO2', value=int(battery_embodied))
+            st.write("Battery capacity is", round(battery_size/1000 ,2), "MWh")
             
-            
-            st.text('Pay-back period:')
+            st.caption('Pay-back Period:')
             
             CO2_payback_years = battery_embodied / differ_CO2
             
@@ -432,7 +465,7 @@ def run_the_app():
             if CO2_payback_years < 0:
                 st.markdown('<p style="color:Red;">NaN', unsafe_allow_html=True)
             else:
-                st.header(str(CO2_payback_years.round(1)) + ' years')      
+                st.subheader(str(CO2_payback_years.round(1)) + ' years')      
 
             
             
@@ -445,8 +478,6 @@ def run_the_app():
             buttons=list([
                 dict(count=1, label="1m", step="month", stepmode="backward"),
                 dict(count=3, label="3m", step="month", stepmode="backward"),
-                dict(count=1, label="YTD", step="year", stepmode="todate"),
-                dict(count=1, label="1y", step="year", stepmode="backward"),
                 dict(step="all")
             ])
         )
@@ -470,8 +501,8 @@ def run_the_app():
     # Cumulative carbon grapgh
     with tab2:
         with t2_col1:
-            kgCO2_figure = px.line(CO2_compared_cumsum, markers=False, width=480, height=400)
-            kgCO2_figure.update_xaxes(title = 'Hour').update_yaxes(title = 'gCO2').update_layout(
+            kgCO2_figure = px.line(CO2_compared_cumsum, markers=False, width=520, height=500)
+            kgCO2_figure.update_xaxes(title = 'Day').update_yaxes(title = 'gCO2').update_layout(
                 legend=dict(x=0.75, y=0.05,traceorder="normal"),
                 margin=dict(l=0, r=0, t=0, b=0),
                 showlegend=True
@@ -489,7 +520,7 @@ def run_the_app():
         
     # Display all data in a table    
     with tab3:
-        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,'CI_avg_min']))
+        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,'CI_avg_min','CI_avg_max']))
 
 if __name__ == "__main__":
     main()
