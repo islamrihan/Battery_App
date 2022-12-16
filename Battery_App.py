@@ -316,7 +316,7 @@ def run_the_app():
     
     
     
-    
+    #######################CHECK LOGIC BELOW FOR DISCHARGING AT MAX CO2 #################################
     
     
     charging_rate = battery_size/_battery_charging_rate
@@ -328,7 +328,7 @@ def run_the_app():
     EU_kWh_Battery = []
     EU_BldgAndBatt = []
 
-    for i, j, h in zip(GridCO2_vs_EU['CHARGING?'],range(len(GridCO2_vs_EU[EU_BLDG])), GridCO2_vs_EU['DISCHARGING?']):
+    for i, j, k in zip(GridCO2_vs_EU['CHARGING?'],range(len(GridCO2_vs_EU[EU_BLDG])), GridCO2_vs_EU['DISCHARGING?']):
         
         if i == True: # Battery IS charging; (LOW CO2 intensity from the grid)
             if battery_charge < battery_size:
@@ -349,18 +349,28 @@ def run_the_app():
             EU_BldgAndBatt.append(EU_BnB)
             
         else: # Battery is NOT charging; (HIGH CO2 intensity from the grid)
-            battery_charge = max(0 , battery_charge - GridCO2_vs_EU[EU_BLDG].iloc[j]) #insure charging does not go below zero
-            battery_kWh.append(battery_charge)
-            
-            EU_battery = 0
-            EU_kWh_Battery.append(EU_battery)
-            
-            if GridCO2_vs_EU[EU_BLDG].iloc[j] > battery_charge:
-                EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j] - battery_charge
-            else:
-                EU_BnB = 0
+            if k == True:
+                battery_charge = max(0 , battery_charge - GridCO2_vs_EU[EU_BLDG].iloc[j]) #insure charging does not go below zero
+                battery_kWh.append(battery_charge)
                 
-            EU_BldgAndBatt.append(EU_BnB)
+                EU_battery = 0
+                EU_kWh_Battery.append(EU_battery)
+                
+                if GridCO2_vs_EU[EU_BLDG].iloc[j] > battery_charge:
+                    EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j] - battery_charge
+                else:
+                    EU_BnB = 0
+                    
+                EU_BldgAndBatt.append(EU_BnB)
+            else:
+                battery_kWh.append(battery_charge)
+                EU_battery = 0
+                EU_kWh_Battery.append(EU_battery)
+                
+                
+                EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j]
+
+                EU_BldgAndBatt.append(EU_BnB)
             
     GridCO2_vs_EU['battery_charge'] = [round(elem, 2) for elem in battery_kWh]
     GridCO2_vs_EU['EU_kWh_Battery'] = [round(elem, 2) for elem in EU_kWh_Battery]
