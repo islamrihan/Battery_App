@@ -316,7 +316,11 @@ def run_the_app():
     
     
     
-    #######################CHECK LOGIC BELOW FOR DISCHARGING AT MAX CO2 #################################
+    
+    
+    
+    
+    #######################CHECK LOGIC BELOW FOR DISCHARGING AT MAX CO2 ################################
     
     
     charging_rate = battery_size/_battery_charging_rate
