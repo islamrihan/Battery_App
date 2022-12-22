@@ -11,6 +11,7 @@ import os, urllib, cv2
 import plotly.offline as py
 import plotly.graph_objs as go
 import plotly.express as px
+from datetime import timedelta
 
 
 def main():
@@ -91,7 +92,7 @@ def run_the_app():
     
     Year = st.sidebar.selectbox(
         '1- Year for Carbon Intensity data:',
-        (2021,2019))
+        (2021,2019,2018))
     
     FP = r'https://raw.githubusercontent.com/islamrihan/Battery_App/main/Utilities/2fa_HourlyAverageElectricalPower.xlsx'
     excel_URL = st.sidebar.text_input('2- URL for hourly energy simulation (.csv): ', FP, key='System FP')
@@ -125,9 +126,121 @@ def run_the_app():
     def csv_to_df(URL):
         return pd.read_csv(csv_URL,index_col=[0],parse_dates=True)
         
+    @st.experimental_memo
+    def csv_to_df_timestamps(URL):
+        return pd.read_csv(csv_URL)
+    
+    
     GridCO2 = csv_to_df(csv_URL)
     GridCO2 = GridCO2.rename(columns={GridCO2.columns[0]:CO2_GRID})
-       
+    
+    df = csv_to_df_timestamps(csv_URL)
+    df = df.rename(columns={df.columns[0]:'timestamp'})
+    df = df.rename(columns={df.columns[1]:'carbon_intensity'})
+    
+
+
+    
+    
+    # Convert the timestamp column to a datetime data type
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+
+    # Extract the date from each timestamp
+    df['date'] = df['timestamp'].dt.date
+
+    # Find the lowest carbon intensity value for each day
+    df['min_intensity'] = df.groupby(df['date'])['carbon_intensity'].transform('min')
+
+    # Find the highest carbon intensity value for each day
+    df['max_intensity'] = df.groupby(df['date'])['carbon_intensity'].transform('max')
+
+    df['charging'] = False
+    df['discharging'] = False
+    
+    # Find the index of the row with the lowest carbon intensity for each day
+    min_index = df.groupby('date')['carbon_intensity'].idxmin()
+
+    # Find the index of the row with the highest carbon intensity for each day
+    max_index = df.groupby('date')['carbon_intensity'].idxmax()
+
+    # Charge the battery 2 hours before the time when the carbon intensity is at its lowest for each day
+    charge_times = df.loc[min_index, 'timestamp']
+
+    # Discharge the battery 2 hours after the time when the carbon intensity is at its highest for each day
+    discharge_times = df.loc[max_index, 'timestamp'] 
+
+    
+
+    st.write(type(df['timestamp'][0]))
+    
+    st.write(type(GridCO2.index))
+
+
+    #charge_mask = (df['timestamp'].isin(charge_times))# | (df['timestamp'].isin(charge_times - timedelta(hours=1))
+    #discharge_mask = df['timestamp'].isin(discharge_times) 
+    
+    
+    #df.loc[charge_mask, 'charging'] = True
+    #df.loc[discharge_mask, 'discharging'] = True
+    
+    
+    step = 1
+
+    for i in min_index:
+        df["charging"].iloc[range(i-step, i+step)] = True
+    for i in max_index:
+        df["discharging"].iloc[range(i-step, i+step)] = True
+    
+    
+    
+    df = df.set_index('timestamp')
+    
+    st.dataframe(df.drop(columns=['date']))
+  
+    
+    
+        
+    #GridCO2['timestamp'] = pd.to_datetime(GridCO2.index)
+    #GridCO2["date"] = GridCO2["timestamp"].dt.date
+        
+    # Find the lowest carbon intensity value for each day
+    #GridCO2['min_intensity'] = GridCO2.groupby(GridCO2['date'])[CO2_GRID].transform('min')
+
+    # Find the highest carbon intensity value for each day
+    #GridCO2['max_intensity'] = GridCO2.groupby(GridCO2['date'])[CO2_GRID].transform('max')
+    
+    #GridCO2['charging'] = False
+    #GridCO2['discharging'] = False
+        
+    # Find the index of the row with the lowest carbon intensity for each day
+    #min_index = GridCO2.groupby('date')[CO2_GRID].idxmin()
+
+    # Find the index of the row with the highest carbon intensity for each day
+    #max_index = GridCO2.groupby('date')[CO2_GRID].idxmax()
+    
+    
+    # Charge the battery 2 hours before the time when the carbon intensity is at its lowest for each day
+    #charge_times = GridCO2.loc[min_index, 'timestamp'] #- timedelta(hours=2)
+
+    # Discharge the battery 2 hours after the time when the carbon intensity is at its highest for each day
+    #discharge_times = GridCO2.loc[max_index, 'timestamp'] #+ timedelta(hours=2)
+
+    #loc_min = min_index.values
+    #loc_max = max_index.values
+    
+
+
+
+    
+    #step = 2
+
+    #for i in loc_min:
+    #    GridCO2["charging"].iloc[int(loc_min.item(i))] = True
+    #for i in loc_max:
+    #    GridCO2["discharging"].iloc[range(int(loc_max.item(i)-step, loc_max.item(i)+step))] = True
+    
+    
+        
     # Daily averaging (get one point per day to represent grid CO2 carbon)
     GridCO2_D = GridCO2.resample('D').mean()
 
@@ -138,7 +251,7 @@ def run_the_app():
     # redefine index column to timestamp
     GridCO2_DS['DATETIME'] = GridCO2.index 
     GridCO2_DS = GridCO2_DS.set_index(['DATETIME'])
-
+    
 
 
 
@@ -275,6 +388,8 @@ def run_the_app():
     GridCO2_vs_EU["CHARGING?"] = GridCO2_vs_EU["BELOW_AVG"] * GridCO2_vs_EU["LOCAL_MIN"]
     
         
+    
+    
         
         
         
