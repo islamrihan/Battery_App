@@ -94,30 +94,23 @@ def run_the_app():
     FP = r'https://raw.githubusercontent.com/islamrihan/Battery_App/main/Utilities/2fa_HourlyAverageElectricalPower.xlsx'
     excel_URL = st.sidebar.text_input('2- URL for hourly energy simulation (.csv): ', FP, key='System FP')
     
-    # Define user input widgets
-    _input_CO2_diff = st.sidebar.slider(
-        label = '3- Battery activating difference in hourly vs. daily average (in gCO2):',
-        help = 'This value determines when the building switches the battery ON/OFF based on the current hourly difference between grid carbont intensity hourly and daily averaged data.',
-        value = 20,
-        max_value = 50,
-        min_value = 0)  # slider widget
-    
+
     _max_load_quantile = st.sidebar.slider(
-        label = r'4- Battery capacity (% of max. daily load):',
+        label = r'3- Battery capacity (% of max. daily load):',
         help = 'This value determines the battery size as a percentage from the maximum daily load of building operational energy demand.',
         value = 60,
         max_value = 100,
         min_value = 5)  # slider widget
     
     _battery_charging_rate = st.sidebar.slider(
-        label = r'5- Battery charging period:',
+        label = r'4- Battery charging rate (hours):',
         help = 'This value determines the number of hours for charging the battery.',
         value = 4,
         max_value = 12,
         min_value = 1)  # slider widget
     
     _battery_discharging_rate = st.sidebar.slider(
-        label = r'5- Battery discharging period:',
+        label = r'5- Battery discharging rate (hours):',
         help = 'This value determines the number of hours for discharging the battery.',
         value = 4,
         max_value = 12,
@@ -237,117 +230,11 @@ def run_the_app():
 
     GridCO2_vs_EU[CO2_DIFF] = GridCO2_vs_EU[CO2_GRID] - GridCO2_vs_EU[CO2_AVG_D]
 
-    GridCO2_vs_EU['BELOW_AVG'] = GridCO2_vs_EU[CO2_DIFF] < -_input_CO2_diff # check if current hour is below daily average CO2 intensity
-    
 
-    
-
-    loads = []
-    max_loads = []
-    max_load = 0
-
-    for i,j in zip(GridCO2_vs_EU['BELOW_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
-        
-        if  i == False:
-            max_load = max_load + GridCO2_vs_EU[EU_BLDG].iloc[j]
-        else:
-            max_loads.append(max_load)
-            max_load = 0
-
-    max_loads = [x for x in max_loads if x != 0] #remove zeros from list
-
-    
        
     battery_size = round(_max_load_quantile/100 * EnergyUse_D.values.max(), 2)
     
-    
-    #st.sidebar.write("Battery capacity is", round(battery_size/1000 ,2), "MWh")
-    
 
-
-
-
-    # create new column for CI values that are <= daily average CO2 intensity
-    CI_avg_min = []
-
-    for i,j in zip(GridCO2_vs_EU['BELOW_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
-        if i == False:
-            CI_avg_min.append(GridCO2_vs_EU[CO2_AVG_D].iloc[j])
-            
-        else:
-            CI_avg_min.append(GridCO2_vs_EU[CO2_GRID].iloc[j])
-        
-    GridCO2_vs_EU['CI_avg_min'] = [round(elem, 2) for elem in CI_avg_min] 
-
-    # locate local minima values in Carbon data
-    
-    step = int(_battery_charging_rate/2)
-
-    y = GridCO2_vs_EU['CI_avg_min'].to_numpy()
-    min_loc = np.where((y[1:-1] < y[0:-2]) * (y[1:-1] < y[2:]))[0] + 1
-        
-    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
-        GridCO2_vs_EU["LOCAL_MIN"] = False
-    
-    if _battery_charging_rate % 2 == 0:
-        for i in range(len(min_loc)):
-            GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step)] = True
-    else:
-        for i in range(len(min_loc)):
-            GridCO2_vs_EU["LOCAL_MIN"].iloc[range(min_loc.item(i)-step, min_loc.item(i)+step+1)] = True        
-
-    GridCO2_vs_EU["CHARGING?"] = GridCO2_vs_EU["BELOW_AVG"] * GridCO2_vs_EU["LOCAL_MIN"]
-    
-        
-    
-    
-        
-        
-        
-        
-    
-    
-    # create new column for CI values that are > daily average CO2 intensity
-    GridCO2_vs_EU['ABOVE_AVG'] = GridCO2_vs_EU[CO2_DIFF] > 0
-
-    CI_avg_max = []
-
-    for i,j in zip(GridCO2_vs_EU['ABOVE_AVG'],range(len(GridCO2_vs_EU[EU_BLDG]))):
-        if i == False:
-            CI_avg_max.append(GridCO2_vs_EU[CO2_AVG_D].iloc[j])
-            
-        else:
-            CI_avg_max.append(GridCO2_vs_EU[CO2_GRID].iloc[j])
-        
-    GridCO2_vs_EU['CI_avg_max'] = [round(elem, 2) for elem in CI_avg_max]
-
-    
-    k = GridCO2_vs_EU['CI_avg_max'].to_numpy()
-    max_loc = np.where((k[1:-1] > k[0:-2]) * (k[1:-1] > k[2:]))[0] + 1
-    
-    for i in range(len(GridCO2_vs_EU[EU_BLDG])):
-        GridCO2_vs_EU["LOCAL_MAX"] = False
-    
-    if _battery_charging_rate % 2 == 0:
-        for i in range(len(max_loc)):
-            GridCO2_vs_EU["LOCAL_MAX"].iloc[range(max_loc.item(i)-step, max_loc.item(i)+step)] = True
-    else:
-        for i in range(len(max_loc)):
-            GridCO2_vs_EU["LOCAL_MAX"].iloc[range(max_loc.item(i)-step, max_loc.item(i)+step+1)] = True
-    
-    
-    GridCO2_vs_EU["DISCHARGING?"] = GridCO2_vs_EU["ABOVE_AVG"] * GridCO2_vs_EU["LOCAL_MAX"]
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    #######################CHECK LOGIC BELOW FOR DISCHARGING AT MAX CO2 ################################
-    
     
     charging_rate = battery_size/_battery_charging_rate
     battery_charge = 0
@@ -358,53 +245,57 @@ def run_the_app():
     EU_kWh_Battery = []
     EU_BldgAndBatt = []
 
-    for i, j, k in zip(GridCO2_vs_EU['CHARGING?'],range(len(GridCO2_vs_EU[EU_BLDG])), GridCO2_vs_EU['DISCHARGING?']):
+    for i, j, k in zip(GridCO2_vs_EU['Charging'],range(len(GridCO2_vs_EU[EU_BLDG])), GridCO2_vs_EU['Discharging']):
         
-        if i == True: # Battery IS charging; (LOW CO2 intensity from the grid)
-            if battery_charge < battery_size:
-                battery_charge = min(battery_size, battery_charge + charging_rate) #insure charging does not exceed battery size
-            else:
-                pass
-            
+        # Battery is CHARGING; (LOW CO2 intensity from the grid)
+        if i == True: 
+            # Find battery charge level for every hour while CHARGING
+            battery_charge = min(battery_size, battery_charge + charging_rate) #insure charging does not exceed battery size
             battery_kWh.append(battery_charge)
             
-            if j == 0:
+            # Calculate battery energy consumption for every hour
+            if j == 0: 
                 EU_battery = battery_kWh[0]
                 EU_kWh_Battery.append(EU_battery)
             else:
                 EU_battery = battery_charge - battery_kWh[j-1]
                 EU_kWh_Battery.append(EU_battery)
             
+            # Building energy use + battery charging use = total (building and battery) energy use for each hour
             EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j] + EU_battery
             EU_BldgAndBatt.append(EU_BnB)
             
-        else: # Battery is NOT charging; (HIGH CO2 intensity from the grid)
-            if k == True:
-                battery_charge = max(0 , battery_charge - GridCO2_vs_EU[EU_BLDG].iloc[j]) #insure charging does not go below zero
-                battery_kWh.append(battery_charge)
-                
-                EU_battery = 0
-                EU_kWh_Battery.append(EU_battery)
-                
-                if GridCO2_vs_EU[EU_BLDG].iloc[j] > battery_charge:
-                    EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j] - battery_charge
-                else:
-                    EU_BnB = 0
-                    
-                EU_BldgAndBatt.append(EU_BnB)
-            else:
-                battery_kWh.append(battery_charge)
-                EU_battery = 0
-                EU_kWh_Battery.append(EU_battery)
-                
-                
-                EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j]
-
-                EU_BldgAndBatt.append(EU_BnB)
+        
+        # Battery is DISCHARGING; (HIGH CO2 intensity from the grid)
+        elif k == True: 
+            # Find battery charge level for every hour while DISCHARGING
+            battery_charge = max(0 , battery_charge - GridCO2_vs_EU[EU_BLDG].iloc[j]) #insure charging does not go below zero
+            battery_kWh.append(battery_charge)
             
-    GridCO2_vs_EU['battery_charge'] = [round(elem, 2) for elem in battery_kWh]
-    GridCO2_vs_EU['EU_kWh_Battery'] = [round(elem, 2) for elem in EU_kWh_Battery]
-    GridCO2_vs_EU['EU_BldgAndBatt'] = [round(elem, 2) for elem in EU_BldgAndBatt]
+            # Set battery energy use to ZERO for each hour (as it is discharging)
+            EU_battery = 0
+            EU_kWh_Battery.append(EU_battery)
+            
+            # Find total buildng and battery energy use for each hour
+            if GridCO2_vs_EU[EU_BLDG].iloc[j] > battery_charge:
+                EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j] - battery_charge
+            else:
+                EU_BnB = 0
+            EU_BldgAndBatt.append(EU_BnB)
+        
+        # Battery is NOT IN USE (neither charging nor discharging);    
+        else:
+            battery_kWh.append(battery_charge)
+            EU_battery = 0
+            EU_kWh_Battery.append(EU_battery)
+            
+            EU_BnB = GridCO2_vs_EU[EU_BLDG].iloc[j]
+            EU_BldgAndBatt.append(EU_BnB)
+    
+    # Convert lists to dataframe columns        
+    GridCO2_vs_EU['battery_charge'] = [elem for elem in battery_kWh]
+    GridCO2_vs_EU['EU_kWh_Battery'] = [elem for elem in EU_kWh_Battery]
+    GridCO2_vs_EU['EU_BldgAndBatt'] = [elem for elem in EU_BldgAndBatt]
     GridCO2_vs_EU['kgCO2_BldgAndBatt'] = GridCO2_vs_EU['EU_BldgAndBatt'] * GridCO2_vs_EU[CO2_GRID] / 1000
 
     
@@ -426,15 +317,6 @@ def run_the_app():
 
     compare = compare.round(decimals=2)
     compare.head(48)
-    
-    st.dataframe(compare)  
-
-    EU_B_D = compare['kWh_Opt0'].resample('D').sum().to_frame()
-    EU_BnB_D = compare['kWh_Opt1'].resample('D').sum().to_frame()
-
-    EU_compared_D = pd.concat([EU_B_D, EU_BnB_D], axis=1)
-
-
 
 
     # Create daily totals of Energy Use 
@@ -468,13 +350,14 @@ def run_the_app():
             st.metric(label='Building with Battery:', value=int(new_EU), delta=str(-(percent_savings_EU.round(1)))+"%", delta_color="off" )
             
         with t1_col1:
-            kWh_figure = px.line(EU_compared_cumsum, markers=False, width=520, height=500)
-            kWh_figure.update_xaxes(title = 'Day').update_yaxes(title = 'gCO2').update_layout(
-                legend=dict(x=0.75, y=0.05,traceorder="normal"),
-                margin=dict(l=0, r=0, t=0, b=0),
-                showlegend=True
-            )
-            st.plotly_chart(kWh_figure, theme = "streamlit")
+            st.line_chart(EU_compared_D)
+#            kWh_figure = px.line(EU_compared_cumsum, markers=False, width=520, height=500)
+#            kWh_figure.update_xaxes(title = 'Day').update_yaxes(title = 'gCO2').update_layout(
+#                legend=dict(x=0.75, y=0.05,traceorder="normal"),
+#                margin=dict(l=0, r=0, t=0, b=0),
+#                showlegend=True
+#            )
+#            st.plotly_chart(kWh_figure, theme = "streamlit")
                         
                        
     
@@ -549,7 +432,9 @@ def run_the_app():
         
     # Display all data in a table    
     with tab3:
-        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,CO2_AVG_D,'CI_avg_min','CI_avg_max']))
+        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,CO2_AVG_D]))
+
+        st.line_chart(compare.drop(columns=['kgCO2_Opt0_cumsum','kgCO2_Opt1_cumsum','kWh_Opt0_cumsum','kWh_Opt1_cumsum']))
 
 if __name__ == "__main__":
     main()
