@@ -71,7 +71,8 @@ def run_the_app():
     CO2_AVG_D = 'CI_gCO2_Grid_DA' # Daily Avg of Carbon Intensity of the grid in gCO2
     EU_BLDG = 'EU_kWh_BLDG' # Enegry use of the building in kWh
     CO2_DIFF = 'CI_gCO2_Difference' # Difference between carbon Intensity of the grid and the daily average 
-    
+    TIMESTAMP = 'timestamp'
+    CARBONINTENSITY = 'carbon_intensity'
     
     # Define stramlit tabs
     tab2, tab1, tab3 = st.tabs(["Carbon Emissions", "Energy Use", "All Data"])    
@@ -79,17 +80,13 @@ def run_the_app():
     
     # Define stramlit column containers
     with tab1:
-        t1_col1, t1_col2 = st.columns([3.5, 1.2])
+        t1_col1, t1_col2 = st.columns([4.5, 1.2])
     
     with tab2:
         t2_col1, t2_col2 = st.columns([4.5, 1.2])
     
 
-    
-    
-    
-    
-    
+    # Define year selection dropdown
     Year = st.sidebar.selectbox(
         '1- Year for Carbon Intensity data:',
         (2021,2019,2018))
@@ -97,29 +94,37 @@ def run_the_app():
     FP = r'https://raw.githubusercontent.com/islamrihan/Battery_App/main/Utilities/2fa_HourlyAverageElectricalPower.xlsx'
     excel_URL = st.sidebar.text_input('2- URL for hourly energy simulation (.csv): ', FP, key='System FP')
     
+    # Define user input widgets
     _input_CO2_diff = st.sidebar.slider(
         label = '3- Battery activating difference in hourly vs. daily average (in gCO2):',
         help = 'This value determines when the building switches the battery ON/OFF based on the current hourly difference between grid carbont intensity hourly and daily averaged data.',
         value = 20,
         max_value = 50,
         min_value = 0)  # slider widget
-    #st.sidebar.write('difference is set to: ', _input_CO2_diff, 'gCO2')
-
+    
     _max_load_quantile = st.sidebar.slider(
         label = r'4- Battery capacity (% of max. daily load):',
         help = 'This value determines the battery size as a percentage from the maximum daily load of building operational energy demand.',
         value = 60,
         max_value = 100,
         min_value = 5)  # slider widget
-    #st.sidebar.write('Battery sizing is', _max_load_quantile, 'percentile of the max load')
     
+    _battery_charging_rate = st.sidebar.slider(
+        label = r'5- Battery charging period:',
+        help = 'This value determines the number of hours for charging the battery.',
+        value = 4,
+        max_value = 12,
+        min_value = 1)  # slider widget
+    
+    _battery_discharging_rate = st.sidebar.slider(
+        label = r'5- Battery discharging period:',
+        help = 'This value determines the number of hours for discharging the battery.',
+        value = 4,
+        max_value = 12,
+        min_value = 1)  # slider widget
 
-
-
-        
-        
-        
-        
+   
+   
     csv_URL = r'https://raw.githubusercontent.com/islamrihan/Battery_App/main/Utilities/gCO2_' + str(Year) + '.csv' 
     # @st.cache
     @st.experimental_memo
@@ -135,126 +140,72 @@ def run_the_app():
     GridCO2 = GridCO2.rename(columns={GridCO2.columns[0]:CO2_GRID})
     
     df = csv_to_df_timestamps(csv_URL)
-    df = df.rename(columns={df.columns[0]:'timestamp'})
-    df = df.rename(columns={df.columns[1]:'carbon_intensity'})
+    df = df.rename(columns={df.columns[0]:TIMESTAMP})
+    df = df.rename(columns={df.columns[1]:CARBONINTENSITY})
     
 
 
     
     
     # Convert the timestamp column to a datetime data type
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df[TIMESTAMP] = pd.to_datetime(df[TIMESTAMP])
 
     # Extract the date from each timestamp
-    df['date'] = df['timestamp'].dt.date
+    df['date'] = df[TIMESTAMP].dt.date
 
     # Find the lowest carbon intensity value for each day
-    df['min_intensity'] = df.groupby(df['date'])['carbon_intensity'].transform('min')
+    df['min_intensity'] = df.groupby(df['date'])[CARBONINTENSITY].transform('min')
 
     # Find the highest carbon intensity value for each day
-    df['max_intensity'] = df.groupby(df['date'])['carbon_intensity'].transform('max')
+    df['max_intensity'] = df.groupby(df['date'])[CARBONINTENSITY].transform('max')
 
     df['charging'] = False
     df['discharging'] = False
     
     # Find the index of the row with the lowest carbon intensity for each day
-    min_index = df.groupby('date')['carbon_intensity'].idxmin()
+    min_index = df.groupby('date')[CARBONINTENSITY].idxmin()
 
     # Find the index of the row with the highest carbon intensity for each day
-    max_index = df.groupby('date')['carbon_intensity'].idxmax()
+    max_index = df.groupby('date')[CARBONINTENSITY].idxmax()
 
     # Charge the battery 2 hours before the time when the carbon intensity is at its lowest for each day
-    charge_times = df.loc[min_index, 'timestamp']
+    charge_times = df.loc[min_index, TIMESTAMP]
 
     # Discharge the battery 2 hours after the time when the carbon intensity is at its highest for each day
-    discharge_times = df.loc[max_index, 'timestamp'] 
-
-    
-
-    st.write(type(df['timestamp'][0]))
-    
-    st.write(type(GridCO2.index))
+    discharge_times = df.loc[max_index, TIMESTAMP] 
 
 
-    #charge_mask = (df['timestamp'].isin(charge_times))# | (df['timestamp'].isin(charge_times - timedelta(hours=1))
-    #discharge_mask = df['timestamp'].isin(discharge_times) 
-    
-    
-    #df.loc[charge_mask, 'charging'] = True
-    #df.loc[discharge_mask, 'discharging'] = True
-    
-    
-    step = 1
-
-    for i in min_index:
-        df["charging"].iloc[range(i-step, i+step)] = True
-    for i in max_index:
-        df["discharging"].iloc[range(i-step, i+step)] = True
-    
-    
-    
-    df = df.set_index('timestamp')
-    
-    st.dataframe(df.drop(columns=['date']))
-  
-    
-    
         
-    #GridCO2['timestamp'] = pd.to_datetime(GridCO2.index)
-    #GridCO2["date"] = GridCO2["timestamp"].dt.date
-        
-    # Find the lowest carbon intensity value for each day
-    #GridCO2['min_intensity'] = GridCO2.groupby(GridCO2['date'])[CO2_GRID].transform('min')
-
-    # Find the highest carbon intensity value for each day
-    #GridCO2['max_intensity'] = GridCO2.groupby(GridCO2['date'])[CO2_GRID].transform('max')
+    step_charging = int(_battery_charging_rate/2)
+    step_discharging = int(_battery_discharging_rate/2)
     
-    #GridCO2['charging'] = False
-    #GridCO2['discharging'] = False
-        
-    # Find the index of the row with the lowest carbon intensity for each day
-    #min_index = GridCO2.groupby('date')[CO2_GRID].idxmin()
-
-    # Find the index of the row with the highest carbon intensity for each day
-    #max_index = GridCO2.groupby('date')[CO2_GRID].idxmax()
+    if _battery_charging_rate % 2 == 0:
+        for i in min_index:
+            df["charging"].iloc[range(max(0,i-step_charging), min(8760,i+step_charging))] = True
+    else:    
+        for i in min_index:
+            df["charging"].iloc[range(max(0,i-step_charging), min(8760,i+step_charging+1))] = True 
+            
+    if _battery_discharging_rate % 2 == 0:        
+        for i in max_index:
+            df["discharging"].iloc[range(max(0,i-step_discharging), min(8760,i+step_discharging))] = True    
+    else:            
+        for i in max_index:
+            df["discharging"].iloc[range(max(0,i-step_discharging), min(8760,i+step_discharging+1))] = True
     
-    
-    # Charge the battery 2 hours before the time when the carbon intensity is at its lowest for each day
-    #charge_times = GridCO2.loc[min_index, 'timestamp'] #- timedelta(hours=2)
-
-    # Discharge the battery 2 hours after the time when the carbon intensity is at its highest for each day
-    #discharge_times = GridCO2.loc[max_index, 'timestamp'] #+ timedelta(hours=2)
-
-    #loc_min = min_index.values
-    #loc_max = max_index.values
-    
+    df = df.set_index(TIMESTAMP)
 
 
-
-    
-    #step = 2
-
-    #for i in loc_min:
-    #    GridCO2["charging"].iloc[int(loc_min.item(i))] = True
-    #for i in loc_max:
-    #    GridCO2["discharging"].iloc[range(int(loc_max.item(i)-step, loc_max.item(i)+step))] = True
-    
-    
-        
     # Daily averaging (get one point per day to represent grid CO2 carbon)
     GridCO2_D = GridCO2.resample('D').mean()
 
-    # scale the daily avg data to 8760 hours
+    # Scale the daily average data to 8760 hours
     GridCO2_DS = pd.DataFrame(np.repeat(GridCO2_D.values, 24, axis=0))
     GridCO2_DS = GridCO2_DS.rename(columns={0:CO2_AVG_D})
 
     # redefine index column to timestamp
     GridCO2_DS['DATETIME'] = GridCO2.index 
     GridCO2_DS = GridCO2_DS.set_index(['DATETIME'])
-    
-
-
-
 
 
     # @st.cache
@@ -264,20 +215,14 @@ def run_the_app():
      
     
 
-       
+    # Get energy use data from excel   
     EnergyUse = excel_to_df(excel_URL)['Unnamed: 61']
     EnergyUse = EnergyUse.drop(index = [0,1]).reset_index().iloc[:, [1]].rename(columns = {'Unnamed: 61':EU_BLDG})
-    # redefine index column to timestamp
     
-    def get_hourly_timestamps(Year):
-        date_str = '1/1/'+str(Year+1)
-        start = pd.to_datetime(date_str) - pd.Timedelta(days=365)
-        hourly_periods = 8760
-        drange = pd.date_range(start, periods=hourly_periods, freq='H')
-        return drange
-   
-    EnergyUse['DATETIME'] = get_hourly_timestamps(Year)
+    # Set timestamp column as index
+    EnergyUse['DATETIME'] = df.index
     EnergyUse = EnergyUse.set_index(['DATETIME'])
+    
     EnergyUse_D = EnergyUse.resample('D').sum()
 
 
@@ -285,39 +230,16 @@ def run_the_app():
 
 
     GridCO2_vs_EU = pd.concat([GridCO2, EnergyUse, GridCO2_DS], axis=1)
-    GridCO2_vs_EU.drop(columns=[EU_BLDG]).head(24*7*2).plot(title='Grid Carbon Intensity Vs. Daily Average', colormap="Set1", figsize=(20,3))
+    
+    
+    GridCO2_vs_EU[['Charging','Discharging']] = df[['charging','discharging']]
+
 
     GridCO2_vs_EU[CO2_DIFF] = GridCO2_vs_EU[CO2_GRID] - GridCO2_vs_EU[CO2_AVG_D]
 
     GridCO2_vs_EU['BELOW_AVG'] = GridCO2_vs_EU[CO2_DIFF] < -_input_CO2_diff # check if current hour is below daily average CO2 intensity
     
-    
-    
-    
-     
-    
 
-    
-#     with tab1:
-#         with t1_col1:
-#             fig_EU = px.line(GridCO2_vs_EU[EU_BLDG],markers=False, width=800, height=200)
-#             fig_EU.update_xaxes(title = 'Hour').update_yaxes(title = 'kWh').update_layout(
-#                 margin=dict(l=50, r=0, t=0, b=40),
-#                 showlegend=False
-#             )
-#             st.plotly_chart(fig_EU, use_container_width=True)
-    
-#     with tab2:
-#         with t2_col1:
-#             fig_CO2 = px.line(GridCO2_vs_EU[CO2_GRID],markers=False, width=800, height=200)
-#             fig_CO2.update_xaxes(title = 'Hour').update_yaxes(title = 'gCO2').update_layout(
-#                 margin=dict(l=50, r=0, t=0, b=40),
-#                 showlegend=False
-#             )
-#             st.plotly_chart(fig_CO2, use_container_width=True)
-    
-    
-    
     
 
     loads = []
@@ -341,17 +263,6 @@ def run_the_app():
     
     #st.sidebar.write("Battery capacity is", round(battery_size/1000 ,2), "MWh")
     
-    
-    _battery_charging_rate = st.sidebar.slider(
-        label = r'5- Battery charging period:',
-        help = 'This value determines the number of hours needed to fully charge the battery.',
-        value = 4,
-        max_value = 12,
-        min_value = 1)  # slider widget
-
-
-
-
 
 
 
@@ -496,13 +407,6 @@ def run_the_app():
     GridCO2_vs_EU['EU_BldgAndBatt'] = [round(elem, 2) for elem in EU_BldgAndBatt]
     GridCO2_vs_EU['kgCO2_BldgAndBatt'] = GridCO2_vs_EU['EU_BldgAndBatt'] * GridCO2_vs_EU[CO2_GRID] / 1000
 
-    #st.dataframe(GridCO2_vs_EU.drop(columns={CO2_GRID, CO2_AVG_D,'CI_gCO2_Difference'}))
-    
-    
-    
-    charge_frequency = GridCO2_vs_EU['battery_charge'].value_counts().sort_values(ascending=False).head(10)
-    
-    
     
     
 
@@ -523,67 +427,94 @@ def run_the_app():
     compare = compare.round(decimals=2)
     compare.head(48)
     
-    
-    #st.dataframe(compare.drop(columns={'kWh_Opt0','kgCO2_Opt0','kWh_Opt1','kgCO2_Opt1'}))
-
+    st.dataframe(compare)  
 
     EU_B_D = compare['kWh_Opt0'].resample('D').sum().to_frame()
     EU_BnB_D = compare['kWh_Opt1'].resample('D').sum().to_frame()
 
     EU_compared_D = pd.concat([EU_B_D, EU_BnB_D], axis=1)
 
-    kWh_figure = px.line(EU_compared_D, markers=True)
-    kWh_figure.update_xaxes(
-        rangeslider_visible=True,
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1m", step="month", stepmode="backward"),
-                dict(count=3, label="3m", step="month", stepmode="backward"),
-                dict(step="all")
-            ])
-        )
-    ).update_layout(
-                legend=dict(x=0.75, y=1,traceorder="normal"),
-                margin=dict(l=0, r=0, t=0, b=0),
-                showlegend=True
-            )
+
+
+
+    # Create daily totals of Energy Use 
+    EU_B_D = compare['kWh_Opt0'].resample('D').sum().to_frame()
+
+    EU_BnB_D = compare['kWh_Opt1'].resample('D').sum().to_frame()
     
+    EU_compared_D = pd.concat([EU_B_D, EU_BnB_D], axis=1)
+
+    totals_EU = EU_compared_D.sum()
+    
+
+    old_EU = totals_EU.iloc[0]/1000
+    new_EU = totals_EU.iloc[1]/1000
+    differ_EU = old_EU - new_EU
+    percent_savings_EU = ((totals_EU.iloc[0]-totals_EU.iloc[1])/totals_EU.iloc[0])*100    
+    
+    # Create daily cummulative summations of Energy Use 
+    EU_B_cumsum = EU_compared_D['kWh_Opt0'].cumsum(axis=0, skipna=True)
+    EU_BnB_cumsum = EU_compared_D['kWh_Opt1'].cumsum(axis=0, skipna=True)
+    EU_compared_cumsum = pd.concat([EU_B_cumsum, EU_BnB_cumsum], axis=1)
+
     
     
     with tab1:
-        st.plotly_chart(kWh_figure, theme = "streamlit")
-
-
+        with t1_col2:
+            st.markdown('<p style="color:Grey; font-size: 22px;">Energy Use', unsafe_allow_html=True)
+            st.caption('in MWh')
+                       
+            st.metric(label='Building Only:', value=int(old_EU))
+            st.metric(label='Building with Battery:', value=int(new_EU), delta=str(-(percent_savings_EU.round(1)))+"%", delta_color="off" )
+            
+        with t1_col1:
+            kWh_figure = px.line(EU_compared_cumsum, markers=False, width=520, height=500)
+            kWh_figure.update_xaxes(title = 'Day').update_yaxes(title = 'gCO2').update_layout(
+                legend=dict(x=0.75, y=0.05,traceorder="normal"),
+                margin=dict(l=0, r=0, t=0, b=0),
+                showlegend=True
+            )
+            st.plotly_chart(kWh_figure, theme = "streamlit")
+                        
+                       
+    
+    
     CO2_B_D = compare['kgCO2_Opt0'].resample('D').sum().to_frame()
     CO2_BnB_D = compare['kgCO2_Opt1'].resample('D').sum().to_frame()
-
     CO2_compared_D = pd.concat([CO2_B_D, CO2_BnB_D], axis=1)
-    
-    
     totals_CO2 = CO2_compared_D.sum()
-    
+
     old_CO2 = totals_CO2.iloc[0]/1000
     new_CO2 = totals_CO2.iloc[1]/1000
     differ_CO2 = old_CO2 - new_CO2
     percent_savings_CO2 = ((totals_CO2.iloc[0]-totals_CO2.iloc[1])/totals_CO2.iloc[0])*100
     
-    with tab2:
-        with t2_col2:
+
             
 
-            st.markdown('<p style="color:Grey; font-size: 22px;">CO<sub>2</sub> Footprint', unsafe_allow_html=True)
-            st.caption('Note: numbers are in CO<sub>2</sub> Tonnes',unsafe_allow_html=True)
+
+    CO2_B_cumsum = CO2_compared_D['kgCO2_Opt0'].cumsum(axis=0, skipna=True)
+    CO2_BnB_cumsum = CO2_compared_D['kgCO2_Opt1'].cumsum(axis=0, skipna=True)
+
+
+    CO2_compared_cumsum = pd.concat([CO2_B_cumsum, CO2_BnB_cumsum], axis=1)
+    
+    
+    # Compose carbon emissions tab 
+    with tab2:
+        
+        # Add side bar highlighted values
+        with t2_col2:
+            st.caption('<p style="color:Grey; font-size: 22px;">CO<sub>2</sub> Footprint', unsafe_allow_html=True)
+            st.caption('<p style="color:Grey; font-size: 12px;">in CO<sub>2</sub> Tonnes',unsafe_allow_html=True)
                        
             st.metric(label='Building Only:', value=int(old_CO2))
             st.metric(label='Building & Battery:', value=int(new_CO2), delta=str(-(percent_savings_CO2.round(1)))+"%", delta_color="inverse" )
                         
-           
-            #st.markdown('<p style="color:Grey; font-size: 30px;">Embodied CO<sub>2</sub>', unsafe_allow_html=True)
-            
-            
-           
+          
             battery_embodied = battery_size * 50 / 1000
-            st.metric(label='Battery Embodied CO2', value=int(battery_embodied))
+            st.metric(label='Battery Embodied CO2*', value=int(battery_embodied))
+            st.caption('<p style="color:Grey; font-size: 12px;">*: assuming 50 kgCO2/kWh',unsafe_allow_html=True)
             st.write("Battery capacity is", round(battery_size/1000 ,2), "MWh")
             
             st.caption('Pay-back Period:')
@@ -595,40 +526,9 @@ def run_the_app():
                 st.markdown('<p style="color:Red;">NaN', unsafe_allow_html=True)
             else:
                 st.subheader(str(CO2_payback_years.round(1)) + ' years')      
-
-            
-            
-            
-
-    kgCO2_figure = px.line(CO2_compared_D,markers=True)
-    kgCO2_figure.update_xaxes(
-        rangeslider_visible=True,
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="1m", step="month", stepmode="backward"),
-                dict(count=3, label="3m", step="month", stepmode="backward"),
-                dict(step="all")
-            ])
-        )
-    )
-    
-
-
-
-    #CO2_B_cumsum = compare['kgCO2_Opt0'].resample('D').sum().to_frame()
-    #CO2_BnB_cumsum = compare['kgCO2_Opt1'].resample('D').sum().to_frame()
-
-
-    CO2_B_cumsum = CO2_compared_D['kgCO2_Opt0'].cumsum(axis=0, skipna=True)
-    CO2_BnB_cumsum = CO2_compared_D['kgCO2_Opt1'].cumsum(axis=0, skipna=True)
-
-
-    CO2_compared_cumsum = pd.concat([CO2_B_cumsum, CO2_BnB_cumsum], axis=1)
     
     
-    
-    # Cumulative carbon grapgh
-    with tab2:
+        # Cumulative carbon graph
         with t2_col1:
             kgCO2_figure = px.line(CO2_compared_cumsum, markers=False, width=520, height=500)
             kgCO2_figure.update_xaxes(title = 'Day').update_yaxes(title = 'gCO2').update_layout(
@@ -649,7 +549,7 @@ def run_the_app():
         
     # Display all data in a table    
     with tab3:
-        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,'CI_avg_min','CI_avg_max']))
+        st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,CO2_AVG_D,'CI_avg_min','CI_avg_max']))
 
 if __name__ == "__main__":
     main()
