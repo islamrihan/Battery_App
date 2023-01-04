@@ -75,7 +75,7 @@ def run_the_app():
     CARBONINTENSITY = 'carbon_intensity'
     
     # Define stramlit tabs
-    tab2, tab1, tab3 = st.tabs(["Carbon Emissions", "Energy Use", "All Data"])    
+    tab2, tab1, tab3, tab4 = st.tabs(["Carbon Emissions", "Energy Use", "All Data", "Battery Profile"])    
     
     
     # Define stramlit column containers
@@ -299,7 +299,8 @@ def run_the_app():
     GridCO2_vs_EU['kgCO2_BldgAndBatt'] = GridCO2_vs_EU['EU_BldgAndBatt'] * GridCO2_vs_EU[CO2_GRID] / 1000
 
     
-    
+    #charge_frequency = GridCO2_vs_EU['battery_charge'].value_counts().sort_values(ascending=False).head(10)
+    #st.bar_chart(charge_frequency)
 
     compare = pd.DataFrame()
     compare['kWh_Opt0'] = GridCO2_vs_EU[EU_BLDG].apply(lambda x: round(x, 2))
@@ -435,6 +436,13 @@ def run_the_app():
         st.dataframe(GridCO2_vs_EU.drop(columns=[CO2_DIFF,CO2_AVG_D]))
 
         st.line_chart(compare.drop(columns=['kgCO2_Opt0_cumsum','kgCO2_Opt1_cumsum','kWh_Opt0_cumsum','kWh_Opt1_cumsum']))
+        
+        
+    with tab4:
+        st.line_chart(GridCO2_vs_EU[['battery_charge']])
+
+
+
 
 if __name__ == "__main__":
     main()
