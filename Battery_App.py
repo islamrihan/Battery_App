@@ -2,12 +2,9 @@ import matplotlib.pyplot as plt
 import requests
 import numpy as np
 import pandas as pd
-#import json
-#import calendar
-#import datetime 
 import math
 import streamlit as st
-import os, urllib, cv2
+import os, urllib
 import plotly.offline as py
 import plotly.graph_objs as go
 import plotly.express as px
