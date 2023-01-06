@@ -7,7 +7,7 @@ import calendar
 import datetime 
 import math
 import streamlit as st
-import os, urllib, cv2
+import os, urllib
 import plotly.offline as py
 import plotly.graph_objs as go
 import plotly.express as px
